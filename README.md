@@ -15,7 +15,9 @@ Official **JavaScript / TypeScript** SDK for **[ApexStream](https://github.com/a
 - sends **subscribe** / **unsubscribe** / **publish** messages as JSON text frames;
 - delivers **message** events to your handlers per channel.
 
-You bring your own **gateway URL** and **API key** (created in the ApexStream dashboard for that deployment). The SDK does **not** read `.env` files; wire values from `import.meta.env` (Vite), `process.env` (Node), or your host’s secret store.
+You bring your own **gateway URL** and **API key** (from the ApexStream dashboard for that deployment). The SDK does **not** read `.env` files; wire values from `import.meta.env` (Vite), `process.env` (Node), or your host’s secret store.
+
+**Keys:** use the **publishable** key (`pk_live_…`) in browser code. The **secret** key (`sk_live_…`) also works for the WebSocket, but the string is added to the URL as `api_key=…` — treat it as sensitive and avoid shipping it in public frontends.
 
 **MIT licensed.**
 
@@ -36,11 +38,19 @@ npm install apexstream
 
 You must pass:
 
-- **`url`** — WebSocket URL of the gateway, ending with **`/v1/ws`**, without query (e.g. `wss://your-domain/v1/ws` or `ws://127.0.0.1:8081/v1/ws`). The client appends `api_key=…` for the browser `WebSocket` handshake.
-- **`apiKey`** — from the dashboard for that deployment.
-- **`allowInsecureTransport`** (optional) — set `true` for **`ws://` to a LAN IP** in dev; production should use **`wss://`**.
+- **`url`** — WebSocket URL of the gateway, ending with **`/v1/ws`** (single slash before `v1`), **without** query string — e.g. `wss://gateway.example.com/v1/ws` or `ws://192.168.1.10:30081/v1/ws`. The client appends **`api_key=…`** for the browser `WebSocket` handshake.
+- **`apiKey`** — dashboard **publishable** (`pk_live_…`) or **secret** (`sk_live_…`) for that app/environment.
+- **`allowInsecureTransport`** (optional) — set **`true`** when using **`ws://`** to anything other than **localhost / 127.0.0.1** (typical LAN or k8s NodePort). Omit or **`false`** when using **`wss://`** in production.
 
 The SDK **does not** load `.env` by itself. Exposed names depend on your bundler (**`VITE_`** = Vite only; **`REACT_APP_`** = CRA; **`NEXT_PUBLIC_`** = Next.js client; plain **`process.env`** in Node). See **`.env.example`** in this package for commented variable names.
+
+### Browser `Origin` and the gateway
+
+The browser sends an **`Origin`** header (e.g. `http://localhost:5173`) that must be allowed by your **gateway** deployment. Self‑hosted gateways support **`APEXSTREAM_GATEWAY_ALLOW_ORIGINS`** (comma‑separated full origins, or `*` for debugging only). If the SPA runs at **`http://localhost:5173`** but the WebSocket host is a **LAN IP** or NodePort, those origins differ — configure the gateway accordingly (see your ApexStream / k8s docs).
+
+### DevTools noise
+
+After **reconnect** or **React Strict Mode**, Chrome may still print a red **“WebSocket … failed”** line for an **old** socket while the **current** connection succeeds — check **Network → WS** for status **101** and incoming frames.
 
 ## Usage
 
