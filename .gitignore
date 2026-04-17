@@ -1,0 +1,13 @@
+node_modules/
+dist/
+
+# JetBrains IDEs
+.idea/
+
+# Local secrets — do not commit
+.env
+.env.local
+.env.*.local
+*.tsbuildinfo
+.DS_Store
+.apexstream-tools/

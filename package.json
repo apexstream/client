@@ -1,0 +1,60 @@
+{
+  "name": "apexstream",
+  "version": "0.1.1",
+  "description": "Official ApexStream JS/TS SDK: WebSocket client for the realtime gateway — subscribe, publish, channel events. Browsers & Node 18+.",
+  "keywords": [
+    "apexstream",
+    "websocket",
+    "realtime",
+    "pubsub",
+    "ws",
+    "wss",
+    "typescript",
+    "browser",
+    "nodejs"
+  ],
+  "homepage": "https://github.com/apexstream/client#readme",
+  "bugs": {
+    "url": "https://github.com/apexstream/client/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/apexstream/client.git"
+  },
+  "author": {
+    "name": "ApexStream",
+    "url": "https://github.com/apexstream"
+  },
+  "license": "MIT",
+  "type": "module",
+  "publishConfig": {
+    "access": "public"
+  },
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
+    }
+  },
+  "files": [
+    "dist",
+    ".env.example"
+  ],
+  "sideEffects": false,
+  "scripts": {
+    "build": "tsup",
+    "prepublishOnly": "npm run build",
+    "test:sdk": "node ../../scripts/sdk-integration-test.mjs"
+  },
+  "devDependencies": {
+    "tsup": "^8.4.0",
+    "typescript": "^5.8.3"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
