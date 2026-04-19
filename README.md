@@ -44,6 +44,14 @@ You must pass:
 
 The SDK **does not** load `.env` by itself. Exposed names depend on your bundler (**`VITE_`** = Vite only; **`REACT_APP_`** = CRA; **`NEXT_PUBLIC_`** = Next.js client; plain **`process.env`** in Node). See **`.env.example`** in this package for commented variable names.
 
+Typical mapping from env → constructor:
+
+| Env (example names) | Constructor option | Why |
+|---|---|---|
+| **`VITE_APEXSTREAM_WS_URL`** / **`APEXSTREAM_WS_URL`** | `url` | Gateway WebSocket endpoint (`…/v1/ws`). |
+| **`VITE_APEXSTREAM_API_KEY`** / **`APEXSTREAM_API_KEY`** | `apiKey` | Dashboard publishable (`pk_live_…`) or secret (`sk_live_…`). |
+| **`VITE_APEXSTREAM_ALLOW_INSECURE`** / **`APEXSTREAM_ALLOW_INSECURE_TRANSPORT`** | `allowInsecureTransport` | Set env so this becomes **`true`** when using **`ws://`** to a **non-localhost** host (LAN IP, **`host.docker.internal`**, k8s NodePort). Omit when using **`wss://`**. |
+
 ### Browser `Origin` and the gateway
 
 The browser sends an **`Origin`** header (e.g. `http://localhost:5173`) that must be allowed by your **gateway** deployment. Self‑hosted gateways support **`APEXSTREAM_GATEWAY_ALLOW_ORIGINS`** (comma‑separated full origins, or `*` for debugging only). If the SPA runs at **`http://localhost:5173`** but the WebSocket host is a **LAN IP** or NodePort, those origins differ — configure the gateway accordingly (see your ApexStream / k8s docs).
@@ -54,12 +62,14 @@ After **reconnect** or **React Strict Mode**, Chrome may still print a red **“
 
 ## Usage
 
+### Production-style (`wss://`)
+
 ```ts
 import { ApexStreamClient } from "apexstream";
 
 const client = new ApexStreamClient({
   url: "wss://your-gateway.example.com/v1/ws",
-  apiKey: "<secret or publishable key from dashboard>",
+  apiKey: "<publishable key from dashboard>",
 });
 
 client.on("open", () => console.log("connected"));
@@ -81,6 +91,58 @@ unsubscribe();
 client.disconnect();
 ```
 
+### Vite: wire URL, key, and optional LAN `ws://`
+
+```ts
+import { ApexStreamClient } from "apexstream";
+
+const allowInsecure =
+  import.meta.env.VITE_APEXSTREAM_ALLOW_INSECURE === "1" ||
+  import.meta.env.VITE_APEXSTREAM_ALLOW_INSECURE === "true";
+
+const client = new ApexStreamClient({
+  url: import.meta.env.VITE_APEXSTREAM_WS_URL,
+  apiKey: import.meta.env.VITE_APEXSTREAM_API_KEY,
+  // Required if url is ws://192.168.x.x:8081/... or ws://host.docker.internal:... — not needed for wss://
+  allowInsecureTransport: allowInsecure,
+});
+
+client.subscribe("metrics", (payload, meta) => {
+  console.log(payload, meta?.reliableMessageId); // meta when extended realtime + reliable messaging
+});
+
+client.connect();
+```
+
+**Variables:**
+
+- **`VITE_APEXSTREAM_WS_URL`** — gateway WebSocket URL (same rules as **`url`** above).
+- **`VITE_APEXSTREAM_API_KEY`** — dashboard key for that app.
+- **`VITE_APEXSTREAM_ALLOW_INSECURE`** — set **`1`** or **`true`** only when you intentionally use **`ws://`** to a remote/LAN/docker host so the SDK does not reject it; production should use **`wss://`** and leave this unset.
+
+### Extended realtime (optional)
+
+When the deployment has **extended realtime** enabled on API + gateway, you can **replay** persisted channel history and **ack reliable** deliveries:
+
+```ts
+client.subscribe("orders", (_payload, meta) => {
+  if (meta?.reliableMessageId) {
+    client.reliableAck(meta.reliableMessageId);
+  }
+});
+
+client.connect();
+
+client.on("open", () => {
+  client.replay("orders", {
+    limit: 100,
+    fromTimestamp: new Date(Date.now() - 3600_000).toISOString(),
+  });
+});
+```
+
+`replay` must run **after** the socket is open. Requires server-side retention / extended features; see your ApexStream runbook.
+
 ## Wire format (draft)
 
 Messages are JSON text frames.
@@ -90,10 +152,12 @@ Messages are JSON text frames.
 - Subscribe: `{ "type": "subscribe", "channel": "orders" }`
 - Unsubscribe: `{ "type": "unsubscribe", "channel": "orders" }`
 - Publish: `{ "type": "publish", "channel": "orders", "payload": { ... } }`
+- Replay (extended): `{ "type": "replay", "channel": "orders", "payload": { ... } }`
+- Reliable ack (extended): `{ "type": "reliable_ack", "payload": { "message_id": "..." } }`
 
 **Server → client**
 
-- Delivery: `{ "type": "message", "channel": "orders", "payload": { ... } }`
+- Delivery: `{ "type": "message", "channel": "orders", "payload": { ... } }` (optional **`reliable_message_id`** on extended realtime)
 
 The gateway authenticates the socket using **`api_key` on the WebSocket URL** (see **Configuration** above). Do not log the full URL after connect in production; use **`wss://`** outside localhost.
 

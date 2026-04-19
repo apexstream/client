@@ -35,7 +35,22 @@ const PROTO = {
   unsubscribe: "unsubscribe",
   publish: "publish",
   message: "message",
+  replay: "replay",
+  reliableAck: "reliable_ack",
 } as const;
+
+/** Optional metadata on inbound channel `message` frames (extended realtime). */
+export type ChannelMessageMeta = {
+  reliableMessageId?: string;
+};
+
+export type ReplayRequest = {
+  /** Durable cursor from a previous `replay_event` payload (`event_id`). */
+  afterEventId?: string;
+  /** ISO8601 lower bound when no cursor exists yet (e.g. last disconnect time). */
+  fromTimestamp?: string;
+  limit?: number;
+};
 
 function parseWebSocketURL(rawUrl: string): URL {
   let parsed: URL;
@@ -86,8 +101,8 @@ function safeJsonParse(text: string): unknown {
  * Lightweight browser/Node 18+ WebSocket client for ApexStream-style gateways.
  *
  * Wire format (JSON text frames), subject to server evolution:
- * - Client → server: `{ "type": "subscribe", "channel": string }`, `{ "type": "publish", "channel": string, "payload": unknown }`
- * - Server → client: `{ "type": "message", "channel": string, "payload": unknown }`
+ * - Client → server: `subscribe`, `publish`, optional `replay`, `reliable_ack` (extended realtime).
+ * - Server → client: `message` (optional `reliable_message_id`), `replay_event`, `welcome`, presence frames, etc.
  */
 export class ApexStreamClient {
   readonly url: string;
@@ -102,7 +117,7 @@ export class ApexStreamClient {
     error: new Set(),
     message: new Set(),
   };
-  private channelHandlers = new Map<string, Set<(payload: unknown) => void>>();
+  private channelHandlers = new Map<string, Set<(payload: unknown, meta?: ChannelMessageMeta) => void>>();
 
   constructor(options: ApexStreamClientOptions) {
     this.url = options.url;
@@ -193,7 +208,12 @@ export class ApexStreamClient {
           const handlers = this.channelHandlers.get(obj.channel);
           if (handlers) {
             const payload = "payload" in obj ? obj.payload : undefined;
-            for (const fn of handlers) fn(payload);
+            const reliableRaw = obj.reliable_message_id;
+            const meta: ChannelMessageMeta | undefined =
+              typeof reliableRaw === "string" && reliableRaw.trim() !== ""
+                ? { reliableMessageId: reliableRaw.trim() }
+                : undefined;
+            for (const fn of handlers) fn(payload, meta);
           }
         }
       }
@@ -206,7 +226,7 @@ export class ApexStreamClient {
     ws?.close(code, reason);
   }
 
-  subscribe(channel: string, handler: (payload: unknown) => void): () => void {
+  subscribe(channel: string, handler: (payload: unknown, meta?: ChannelMessageMeta) => void): () => void {
     let set = this.channelHandlers.get(channel);
     if (!set) {
       set = new Set();
@@ -235,6 +255,39 @@ export class ApexStreamClient {
       throw new Error("ApexStreamClient is not connected");
     }
     this.sendJson({ type: PROTO.publish, channel, payload });
+  }
+
+  /**
+   * Request durable history for a channel (requires extended realtime + retention on the app).
+   * Server responds with `replay_started` then zero or more `replay_event` frames on this connection.
+   */
+  replay(channel: string, req: ReplayRequest = {}): void {
+    if (!this.connected) {
+      throw new Error("ApexStreamClient is not connected");
+    }
+    const payload: Record<string, unknown> = {};
+    if (req.afterEventId != null && req.afterEventId !== "") {
+      payload.after_event_id = req.afterEventId;
+    }
+    if (req.fromTimestamp != null && req.fromTimestamp !== "") {
+      payload.from_timestamp = req.fromTimestamp;
+    }
+    if (req.limit != null && req.limit > 0) {
+      payload.limit = req.limit;
+    }
+    this.sendJson({ type: PROTO.replay, channel, payload });
+  }
+
+  /** Ack a reliable delivery (`reliable_message_id` from an inbound `message`). Extended realtime only. */
+  reliableAck(messageId: string): void {
+    if (!this.connected) {
+      throw new Error("ApexStreamClient is not connected");
+    }
+    const mid = messageId.trim();
+    if (!mid) {
+      throw new Error("reliableAck requires message_id");
+    }
+    this.sendJson({ type: PROTO.reliableAck, payload: { message_id: mid } });
   }
 
   private sendJson(message: Record<string, unknown>): void {
