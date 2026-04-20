@@ -1,6 +1,6 @@
 {
   "name": "apexstream",
-  "version": "0.1.4",
+  "version": "1.0.5",
   "description": "Official ApexStream JS/TS SDK — WebSocket client for the realtime gateway (subscribe, publish, channel messages). Uses api_key on the WS URL; browsers & Node 18+.",
   "keywords": [
     "apexstream",

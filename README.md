@@ -6,6 +6,7 @@ Official **JavaScript / TypeScript** SDK for **[ApexStream](https://github.com/a
 |---|---|
 | **Repository** | [`github.com/apexstream/client`](https://github.com/apexstream/client) |
 | **Issues** | [github.com/apexstream/client/issues](https://github.com/apexstream/client/issues) |
+| **Examples** | **[github.com/apexstream/examples](https://github.com/apexstream/examples)** — standalone Vite demos (chat, dashboard, webhooks, presence, admin, AI bus); copy a folder and run `npm install` in `client/`. |
 
 ## Description
 
@@ -27,6 +28,10 @@ You bring your own **gateway URL** and **API key** (from the ApexStream dashboar
 - **Connection lifecycle** hooks: `open`, `close`, `error`, `message`  
 - **Secure by default** for non-localhost hosts: requires `wss://` outside localhost  
 - **ESM + CJS** builds and TypeScript typings included  
+
+## Examples
+
+Runnable **product demos** that use this SDK live in **[apexstream/examples](https://github.com/apexstream/examples)** (separate repo so you can clone or zip a single demo without the full platform tree). Each demo has its own `README` and `client/.env.example`.
 
 ## Install
 

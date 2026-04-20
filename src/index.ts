@@ -42,6 +42,8 @@ const PROTO = {
 /** Optional metadata on inbound channel `message` frames (extended realtime). */
 export type ChannelMessageMeta = {
   reliableMessageId?: string;
+  /** Durable row id when the publish was stored for replay (same as `replay_event` cursors). */
+  durableEventId?: string;
 };
 
 export type ReplayRequest = {
@@ -209,9 +211,15 @@ export class ApexStreamClient {
           if (handlers) {
             const payload = "payload" in obj ? obj.payload : undefined;
             const reliableRaw = obj.reliable_message_id;
+            const durableRaw = obj.durable_event_id;
+            const hasReliable = typeof reliableRaw === "string" && reliableRaw.trim() !== "";
+            const hasDurable = typeof durableRaw === "string" && durableRaw.trim() !== "";
             const meta: ChannelMessageMeta | undefined =
-              typeof reliableRaw === "string" && reliableRaw.trim() !== ""
-                ? { reliableMessageId: reliableRaw.trim() }
+              hasReliable || hasDurable
+                ? {
+                    ...(hasReliable ? { reliableMessageId: reliableRaw.trim() } : {}),
+                    ...(hasDurable ? { durableEventId: durableRaw.trim() } : {}),
+                  }
                 : undefined;
             for (const fn of handlers) fn(payload, meta);
           }
