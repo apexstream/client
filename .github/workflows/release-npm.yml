@@ -4,6 +4,7 @@ on:
   workflow_dispatch:
   push:
     tags:
+      - "v*"
       - "apexstream-v*"
 
 permissions:
@@ -14,6 +15,7 @@ jobs:
   publish:
     name: Publish apexstream to npm
     runs-on: ubuntu-latest
+    environment: npm-publish
 
     steps:
       - name: Checkout
