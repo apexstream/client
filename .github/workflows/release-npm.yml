@@ -1,0 +1,36 @@
+name: Release npm (apexstream)
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - "apexstream-v*"
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  publish:
+    name: Publish apexstream to npm
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          registry-url: "https://registry.npmjs.org"
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build package
+        run: npm run build -w apexstream
+
+      - name: Publish with provenance
+        run: npm publish --workspace apexstream --access public --provenance
