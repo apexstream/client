@@ -45,7 +45,7 @@ You must pass:
 
 - **`url`** — WebSocket URL of the gateway, ending with **`/v1/ws`** (single slash before `v1`), **without** query string — e.g. `wss://gateway.example.com/v1/ws` or `ws://192.168.1.10:30081/v1/ws`. The client appends **`api_key=…`** for the browser `WebSocket` handshake.
 - **`apiKey`** — dashboard **publishable** (`pk_live_…`) or **secret** (`sk_live_…`) for that app/environment.
-- **`allowInsecureTransport`** (optional) — set **`true`** when using **`ws://`** to anything other than **localhost / 127.0.0.1** (typical LAN or k8s NodePort). Omit or **`false`** when using **`wss://`** in production.
+- **`allowInsecureTransport`** (optional) — set **`true`** when using **`ws://`** to anything other than **localhost / 127.0.0.1** (typical LAN or k8s NodePort). In local dev (HTTP page + **`ws://`** gateway) use **`wsUrl.startsWith("ws://")`** and/or set **`VITE_APEXSTREAM_ALLOW_INSECURE=1`** so the SDK does not reject plain WebSocket (see Vite snippet below). Omit or **`false`** when using **`wss://`** in production.
 
 The SDK **does not** load `.env` by itself. Exposed names depend on your bundler (**`VITE_`** = Vite only; **`REACT_APP_`** = CRA; **`NEXT_PUBLIC_`** = Next.js client; plain **`process.env`** in Node). See **`.env.example`** in this package for commented variable names.
 
@@ -55,7 +55,7 @@ Typical mapping from env → constructor:
 |---|---|---|
 | **`VITE_APEXSTREAM_WS_URL`** / **`APEXSTREAM_WS_URL`** | `url` | Gateway WebSocket endpoint (`…/v1/ws`). |
 | **`VITE_APEXSTREAM_API_KEY`** / **`APEXSTREAM_API_KEY`** | `apiKey` | Dashboard publishable (`pk_live_…`) or secret (`sk_live_…`). |
-| **`VITE_APEXSTREAM_ALLOW_INSECURE`** / **`APEXSTREAM_ALLOW_INSECURE_TRANSPORT`** | `allowInsecureTransport` | Set env so this becomes **`true`** when using **`ws://`** to a **non-localhost** host (LAN IP, **`host.docker.internal`**, k8s NodePort). Omit when using **`wss://`**. |
+| **`VITE_APEXSTREAM_ALLOW_INSECURE`** / **`APEXSTREAM_ALLOW_INSECURE_TRANSPORT`** | `allowInsecureTransport` | Set **`1`** / **`true`** for **explicit** local/LAN dev (page on `http://`, gateway on **`ws://`** to a non-localhost host). Combine with URL: **`wsUrl.startsWith("ws://")`** **or** this env (see Vite snippet). Node publishers: **`url.startsWith("ws://")`** from `APEXSTREAM_WS_URL`, or set **`APEXSTREAM_ALLOW_INSECURE_TRANSPORT`**. |
 
 ### Browser `Origin` and the gateway
 
@@ -77,7 +77,11 @@ const client = new ApexStreamClient({
   apiKey: "<publishable key from dashboard>",
 });
 
-client.on("open", () => console.log("connected"));
+client.on("open", () => {
+  console.log("connected");
+  // publish only after the socket is OPEN (connect() is asynchronous)
+  client.publish("orders", { kind: "placed", id: "ord_123" });
+});
 client.on("close", (ev) => console.log("closed", ev.code, ev.reason));
 client.on("error", (ev) => console.error("socket error", ev));
 client.on("message", (data) => console.log("raw frame", data));
@@ -88,28 +92,27 @@ const unsubscribe = client.subscribe("orders", (payload) => {
 
 client.connect();
 
-// After the socket is open:
-client.publish("orders", { kind: "placed", id: "ord_123" });
-
 // Later:
 unsubscribe();
 client.disconnect();
 ```
 
-### Vite: wire URL, key, and optional LAN `ws://`
+### Vite: local `http://` + `ws://`, or LAN NodePort (same pattern as repo `examples/*/client`)
 
 ```ts
 import { ApexStreamClient } from "apexstream";
 
-const allowInsecure =
+const wsUrl = import.meta.env.VITE_APEXSTREAM_WS_URL!;
+const apiKey = import.meta.env.VITE_APEXSTREAM_API_KEY!;
+const allowInsecureTransport =
+  wsUrl.startsWith("ws://") ||
   import.meta.env.VITE_APEXSTREAM_ALLOW_INSECURE === "1" ||
   import.meta.env.VITE_APEXSTREAM_ALLOW_INSECURE === "true";
 
 const client = new ApexStreamClient({
-  url: import.meta.env.VITE_APEXSTREAM_WS_URL,
-  apiKey: import.meta.env.VITE_APEXSTREAM_API_KEY,
-  // Required if url is ws://192.168.x.x:8081/... or ws://host.docker.internal:... — not needed for wss://
-  allowInsecureTransport: allowInsecure,
+  url: wsUrl,
+  apiKey,
+  allowInsecureTransport,
 });
 
 client.subscribe("metrics", (payload, meta) => {
@@ -123,7 +126,9 @@ client.connect();
 
 - **`VITE_APEXSTREAM_WS_URL`** — gateway WebSocket URL (same rules as **`url`** above).
 - **`VITE_APEXSTREAM_API_KEY`** — dashboard key for that app.
-- **`VITE_APEXSTREAM_ALLOW_INSECURE`** — set **`1`** or **`true`** only when you intentionally use **`ws://`** to a remote/LAN/docker host so the SDK does not reject it; production should use **`wss://`** and leave this unset.
+- **`VITE_APEXSTREAM_ALLOW_INSECURE`** — optional **`1`** / **`true`**: explicit “dev / no HTTPS” switch so **`allowInsecureTransport`** is true even if you prefer to set it manually; **`ws://`** in the URL already implies insecure transport for the SDK, but the flag documents local mode and helps when people copy `.env.example` first.
+
+Production should use **`wss://`**; then both **`wsUrl.startsWith("ws://")`** and the env flag should be unset / false.
 
 ### Extended realtime (optional)
 
