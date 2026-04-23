@@ -18,20 +18,13 @@ jobs:
     environment: npm-publish
 
     steps:
-      - name: Checkout
-        uses: actions/checkout@v5
+      - uses: actions/checkout@v5
 
-      - name: Setup Node
-        uses: actions/setup-node@v5
+      - uses: actions/setup-node@v5
         with:
           node-version: 22
-          registry-url: "https://registry.npmjs.org"
+          registry-url: https://registry.npmjs.org
 
-      - name: Install dependencies
-        run: npm install
-
-      - name: Build package
-        run: npm run build -w apexstream
-
-      - name: Publish with provenance
-        run: npm publish --workspace apexstream --access public --provenance
+      - run: npm install
+      - run: npm run build
+      - run: npm publish --access public --provenance
