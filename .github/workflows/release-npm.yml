@@ -1,0 +1,30 @@
+name: Release npm (apexstream)
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - "v*"
+      - "apexstream-v*"
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  publish:
+    name: Publish apexstream to npm
+    runs-on: ubuntu-latest
+    environment: npm-publish
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          registry-url: https://registry.npmjs.org
+
+      - run: npm install
+      - run: npm run build
+      - run: npm publish --access public --provenance
