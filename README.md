@@ -70,7 +70,7 @@ After **reconnect** or **React Strict Mode**, Chrome may still print a red **“
 ### Production-style (`wss://`)
 
 ```ts
-import { ApexStreamClient } from "apexstream";
+import { ApexStreamClient } from "@apexstream/client";
 
 const client = new ApexStreamClient({
   url: "wss://your-gateway.example.com/v1/ws",
@@ -100,7 +100,7 @@ client.disconnect();
 ### Vite: local `http://` + `ws://`, or LAN NodePort (same pattern as repo `examples/*/client`)
 
 ```ts
-import { ApexStreamClient } from "apexstream";
+import { ApexStreamClient } from "@apexstream/client";
 
 const wsUrl = import.meta.env.VITE_APEXSTREAM_WS_URL!;
 const apiKey = import.meta.env.VITE_APEXSTREAM_API_KEY!;
