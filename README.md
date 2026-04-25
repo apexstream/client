@@ -6,6 +6,7 @@ Official **JavaScript / TypeScript** SDK for **[ApexStream](https://github.com/a
 |---|---|
 | **Repository** | [`github.com/apexstream/client`](https://github.com/apexstream/client) |
 | **Issues** | [github.com/apexstream/client/issues](https://github.com/apexstream/client/issues) |
+| **Website** | **[apexstream.org](https://apexstream.org/)** — dashboard signup, setup flow, and platform docs. |
 | **Examples** | **[github.com/apexstream/examples](https://github.com/apexstream/examples)** — standalone Vite demos (chat, dashboard, webhooks, presence, admin, AI bus); copy a folder and run `npm install` in `client/`. |
 
 ## Description
@@ -24,10 +25,10 @@ You bring your own **gateway URL** and **API key** (from the ApexStream dashboar
 
 ## Features
 
-- **Subscribe / publish** on named channels with per-channel callbacks  
-- **Connection lifecycle** hooks: `open`, `close`, `error`, `message`  
-- **Secure by default** for non-localhost hosts: requires `wss://` outside localhost  
-- **ESM + CJS** builds and TypeScript typings included  
+- **Subscribe / publish** on named channels with per-channel callbacks
+- **Connection lifecycle** hooks: `open`, `close`, `error`, `message`
+- **Secure by default** for non-localhost hosts: requires `wss://` outside localhost
+- **ESM + CJS** builds and TypeScript typings included
 
 ## Examples
 
@@ -44,7 +45,7 @@ npm install apexstream
 You must pass:
 
 - **`url`** — WebSocket URL of the gateway, ending with **`/v1/ws`** (single slash before `v1`), **without** query string — e.g. `wss://gateway.example.com/v1/ws` or `ws://192.168.1.10:30081/v1/ws`. The client appends **`api_key=…`** for the browser `WebSocket` handshake.
-- **`apiKey`** — dashboard **publishable** (`pk_live_…`) or **secret** (`sk_live_…`) for that app/environment.
+- **`apiKey`** — dashboard **publishable** (`pk_live_…`) or **secret** (`sk_live_…`) for that app/environment. Create your Organization and Application in the ApexStream dashboard first to generate keys; setup instructions are on **[apexstream.org](https://apexstream.org/)**.
 - **`allowInsecureTransport`** (optional) — set **`true`** when using **`ws://`** to anything other than **localhost / 127.0.0.1** (typical LAN or k8s NodePort). In local dev (HTTP page + **`ws://`** gateway) use **`wsUrl.startsWith("ws://")`** and/or set **`VITE_APEXSTREAM_ALLOW_INSECURE=1`** so the SDK does not reject plain WebSocket (see Vite snippet below). Omit or **`false`** when using **`wss://`** in production.
 
 The SDK **does not** load `.env` by itself. Exposed names depend on your bundler (**`VITE_`** = Vite only; **`REACT_APP_`** = CRA; **`NEXT_PUBLIC_`** = Next.js client; plain **`process.env`** in Node). See **`.env.example`** in this package for commented variable names.
@@ -73,21 +74,21 @@ After **reconnect** or **React Strict Mode**, Chrome may still print a red **“
 import { ApexStreamClient } from "@apexstream/client";
 
 const client = new ApexStreamClient({
-  url: "wss://your-gateway.example.com/v1/ws",
-  apiKey: "<publishable key from dashboard>",
+    url: "wss://your-gateway.example.com/v1/ws",
+    apiKey: "<publishable key from dashboard>",
 });
 
 client.on("open", () => {
-  console.log("connected");
-  // publish only after the socket is OPEN (connect() is asynchronous)
-  client.publish("orders", { kind: "placed", id: "ord_123" });
+    console.log("connected");
+    // publish only after the socket is OPEN (connect() is asynchronous)
+    client.publish("orders", { kind: "placed", id: "ord_123" });
 });
 client.on("close", (ev) => console.log("closed", ev.code, ev.reason));
 client.on("error", (ev) => console.error("socket error", ev));
 client.on("message", (data) => console.log("raw frame", data));
 
 const unsubscribe = client.subscribe("orders", (payload) => {
-  console.log("orders event", payload);
+    console.log("orders event", payload);
 });
 
 client.connect();
@@ -105,18 +106,18 @@ import { ApexStreamClient } from "@apexstream/client";
 const wsUrl = import.meta.env.VITE_APEXSTREAM_WS_URL!;
 const apiKey = import.meta.env.VITE_APEXSTREAM_API_KEY!;
 const allowInsecureTransport =
-  wsUrl.startsWith("ws://") ||
-  import.meta.env.VITE_APEXSTREAM_ALLOW_INSECURE === "1" ||
-  import.meta.env.VITE_APEXSTREAM_ALLOW_INSECURE === "true";
+    wsUrl.startsWith("ws://") ||
+    import.meta.env.VITE_APEXSTREAM_ALLOW_INSECURE === "1" ||
+    import.meta.env.VITE_APEXSTREAM_ALLOW_INSECURE === "true";
 
 const client = new ApexStreamClient({
-  url: wsUrl,
-  apiKey,
-  allowInsecureTransport,
+    url: wsUrl,
+    apiKey,
+    allowInsecureTransport,
 });
 
 client.subscribe("metrics", (payload, meta) => {
-  console.log(payload, meta?.reliableMessageId); // meta when extended realtime + reliable messaging
+    console.log(payload, meta?.reliableMessageId); // meta when extended realtime + reliable messaging
 });
 
 client.connect();
@@ -136,18 +137,18 @@ When the deployment has **extended realtime** enabled on API + gateway, you can 
 
 ```ts
 client.subscribe("orders", (_payload, meta) => {
-  if (meta?.reliableMessageId) {
-    client.reliableAck(meta.reliableMessageId);
-  }
+    if (meta?.reliableMessageId) {
+        client.reliableAck(meta.reliableMessageId);
+    }
 });
 
 client.connect();
 
 client.on("open", () => {
-  client.replay("orders", {
-    limit: 100,
-    fromTimestamp: new Date(Date.now() - 3600_000).toISOString(),
-  });
+    client.replay("orders", {
+        limit: 100,
+        fromTimestamp: new Date(Date.now() - 3600_000).toISOString(),
+    });
 });
 ```
 
