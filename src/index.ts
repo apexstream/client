@@ -1,14 +1,18 @@
+import { ApexStreamDatabase } from "./database";
+
 /** Event names for `ApexStreamClient.prototype.on` / `off`. */
 export type ApexStreamEvent = "open" | "close" | "error" | "message";
 
 export type ApexStreamClientOptions = {
-  /** WebSocket base URL (e.g. `wss://gateway.example.com/v1/ws`) — without query; the client appends `api_key` for the handshake. */
+  /** WebSocket base URL (e.g. `wss://gateway.example.com/v1/ws`) — without query; credentials are appended for the handshake. */
   url: string;
   /**
    * API key for the gateway (sent as `api_key` query on the WebSocket URL; browsers cannot set custom headers on `WebSocket`).
-   * Do not log the full URL after connect in production.
+   * Provide either `apiKey` or `jwt` (from {@link ApexStreamAuth.issueRealtimeToken}).
    */
-  apiKey: string;
+  apiKey?: string;
+  /** Short-lived realtime JWT (`token` query). Preferred after end-user login. */
+  jwt?: string;
   /**
    * When true, allows `ws://` to hosts other than localhost (LAN/dev only). Production should use `wss://`.
    */
@@ -78,14 +82,14 @@ function assertSecureTransport(wsURL: URL, allowInsecureTransport?: boolean): vo
   }
 }
 
-/** Gateway accepts `api_key` / `apiKey` on the upgrade URL (see server `authenticateAPIKey`). */
-function websocketUrlWithApiKey(parsed: URL, apiKey: string): string {
+/** Gateway accepts `api_key` / `apiKey` or `token` / `jwt` on the upgrade URL. */
+function websocketUrlWithCredentials(parsed: URL, apiKey: string, jwt: string): string {
   const next = new URL(parsed.toString());
   const key = apiKey.trim();
-  if (!key) {
-    return next.toString();
-  }
-  if (!next.searchParams.has("api_key") && !next.searchParams.has("apiKey")) {
+  const tok = jwt.trim();
+  if (tok && !next.searchParams.has("token") && !next.searchParams.has("jwt")) {
+    next.searchParams.set("token", tok);
+  } else if (key && !next.searchParams.has("api_key") && !next.searchParams.has("apiKey")) {
     next.searchParams.set("api_key", key);
   }
   return next.toString();
@@ -109,6 +113,7 @@ function safeJsonParse(text: string): unknown {
 export class ApexStreamClient {
   readonly url: string;
   readonly apiKey: string;
+  readonly jwt: string;
 
   /** Resolved gateway WebSocket URL (after parse + security checks). */
   private resolvedWsUrl: string;
@@ -123,10 +128,20 @@ export class ApexStreamClient {
 
   constructor(options: ApexStreamClientOptions) {
     this.url = options.url;
-    this.apiKey = options.apiKey;
+    this.apiKey = options.apiKey?.trim() ?? "";
+    this.jwt = options.jwt?.trim() ?? "";
+    if (!this.apiKey && !this.jwt) {
+      throw new Error("ApexStreamClient requires apiKey or jwt");
+    }
     const parsedURL = parseWebSocketURL(options.url);
     assertSecureTransport(parsedURL, options.allowInsecureTransport);
-    this.resolvedWsUrl = websocketUrlWithApiKey(parsedURL, options.apiKey);
+    this.resolvedWsUrl = websocketUrlWithCredentials(parsedURL, this.apiKey, this.jwt);
+  }
+
+  /** Replace the realtime JWT used on the next connect (e.g. after token refresh). */
+  setJwt(jwt: string): void {
+    const parsedURL = parseWebSocketURL(this.url);
+    this.resolvedWsUrl = websocketUrlWithCredentials(parsedURL, "", jwt.trim());
   }
 
   get connected(): boolean {
@@ -305,4 +320,30 @@ export class ApexStreamClient {
     }
     ws.send(JSON.stringify(message));
   }
+
+  /** Document database HTTP client (uses this client for live `db.*` subscriptions). */
+  database(controlPlaneUrl: string): ApexStreamDatabase {
+    return new ApexStreamDatabase({
+      controlPlaneUrl,
+      apiKey: this.apiKey,
+      realtimeClient: this,
+    });
+  }
 }
+
+export {
+  ApexStreamDatabase,
+  CollectionRef,
+  DocumentRef,
+  type ApexStreamDatabaseOptions,
+  type AppDocument,
+  type DatabaseChangeEvent,
+} from "./database";
+
+export {
+  ApexStreamAuth,
+  type ApexStreamAuthOptions,
+  type AppAuthSession,
+  type AppAuthUser,
+  type AuthStateChangeCallback,
+} from "./auth";
